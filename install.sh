@@ -2,6 +2,12 @@
 
 # BlockScout installation script for Ubuntu 20.04
 
+# Function to check if a port is open
+check_port() {
+  nc -z localhost "$1"
+  return $?
+}
+
 # Update system packages
 sudo apt update
 
@@ -21,6 +27,21 @@ sudo apt install -y nodejs
 
 # Install Yarn package manager
 sudo npm install -g yarn
+
+# Check if port is open
+if check_port 4000; then
+  echo "Port 4000 is already open. Continuing with the installation."
+else
+  read -p "Port 4000 is closed. Would you like to open it? (Y/n) " open_port_choice
+  if [[ $open_port_choice =~ ^[Yy]$ ]]; then
+    # Open port 4000
+    sudo ufw allow 4000
+    echo "Port 4000 has been opened. Continuing with the installation."
+  else
+    echo "Port 4000 needs to be open for BlockScout. Aborting installation."
+    exit 1
+  fi
+fi
 
 # Configure PostgreSQL
 read -p "Enter PostgreSQL username: " pg_username
