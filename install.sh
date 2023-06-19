@@ -23,9 +23,13 @@ sudo apt install -y nodejs
 sudo npm install -g yarn
 
 # Configure PostgreSQL
-sudo -u postgres psql -c "CREATE USER blockscout WITH PASSWORD 'blockscout';"
-sudo -u postgres psql -c "ALTER USER blockscout WITH SUPERUSER;"
-sudo -u postgres psql -c "CREATE DATABASE blockscout OWNER blockscout;"
+read -p "Enter PostgreSQL username: " pg_username
+read -s -p "Enter PostgreSQL password: " pg_password
+echo
+
+sudo -u postgres psql -c "CREATE USER $pg_username WITH PASSWORD '$pg_password';"
+sudo -u postgres psql -c "ALTER USER $pg_username WITH SUPERUSER;"
+sudo -u postgres psql -c "CREATE DATABASE blockscout OWNER $pg_username;"
 
 # Install dependencies
 mix do deps.get, compile
