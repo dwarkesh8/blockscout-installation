@@ -2,6 +2,12 @@
 
 # BlockScout installation script for Ubuntu 20.04
 
+# Function to check if a package is installed
+package_installed() {
+  dpkg -s "$1" &> /dev/null
+  return $?
+}
+
 # Function to check if a port is open
 check_port() {
   nc -z localhost "$1"
@@ -10,12 +16,31 @@ check_port() {
 
 # Update system packages
 sudo apt update
+sudo apt upgrade -y
 
-# Install required packages
-sudo apt install -y curl git postgresql postgresql-contrib
+cd /home/
+#mkdir blockscout
+#cd blockscout
 
-# Install Elixir and Erlang
-sudo apt install -y esl-erlang elixir
+# Install required packages if not already installed
+if ! package_installed curl || ! package_installed git || ! package_installed postgresql || ! package_installed postgresql-contrib; then
+  sudo apt install -y curl git postgresql postgresql-contrib
+else
+  echo "Required packages are already installed. Skipping package installation."
+fi
+
+# Install Elixir and Erlang if not already installed
+if ! package_installed esl-erlang || ! package_installed elixir; then
+  # Download and install esl-erlang package
+  wget https://packages.erlang-solutions.com/erlang/debian/pool/esl-erlang_24.3.2-1~ubuntu~focal_amd64.deb
+  chmod +x esl-erlang_24.3.2-1~ubuntu~focal_amd64.deb
+  sudo dpkg -i esl-erlang_24.3.2-1~ubuntu~focal_amd64.deb
+
+  # Install elixir package
+  sudo apt install -y elixir
+else
+  echo "Elixir and Erlang are already installed. Skipping Elixir and Erlang installation."
+fi
 
 # Clone BlockScout repository (replace with desired version)
 git clone --branch v4.1.4-beta https://github.com/poanetwork/blockscout.git
@@ -36,6 +61,9 @@ else
   if [[ $open_port_choice =~ ^[Yy]$ ]]; then
     # Open port 4000
     sudo ufw allow 4000
+    sudo ufw allow ssh
+    sudo ufw allow http
+    sudo ufw enable
     echo "Port 4000 has been opened. Continuing with the installation."
   else
     echo "Port 4000 needs to be open for BlockScout. Aborting installation."
@@ -44,13 +72,17 @@ else
 fi
 
 # Configure PostgreSQL
-read -p "Enter PostgreSQL username: " pg_username
-read -s -p "Enter PostgreSQL password: " pg_password
-echo
+if package_installed postgresql; then
+  echo "PostgreSQL is already installed. Skipping PostgreSQL setup."
+else
+  read -p "Enter PostgreSQL username: " pg_username
+  read -s -p "Enter PostgreSQL password: " pg_password
+  echo
 
-sudo -u postgres psql -c "CREATE USER $pg_username WITH PASSWORD '$pg_password';"
-sudo -u postgres psql -c "ALTER USER $pg_username WITH SUPERUSER;"
-sudo -u postgres psql -c "CREATE DATABASE blockscout OWNER $pg_username;"
+  sudo -u postgres psql -c "CREATE USER $pg_username WITH PASSWORD '$pg_password';" || echo "User already exists. Skipping user creation."
+  sudo -u postgres psql -c "ALTER USER $pg_username WITH SUPERUSER;" || echo "User already has SUPERUSER privileges. Skipping role alteration."
+  sudo -u postgres psql -c "CREATE DATABASE blockscout OWNER $pg_username;" || echo "Database already exists. Skipping database creation."
+fi
 
 # Install dependencies
 mix do deps.get, compile
@@ -61,13 +93,6 @@ cp config/dev.exs config/dev.secret.exs
 
 # Create and migrate the database
 mix do ecto.create, ecto.migrate
-
-# Install Node.js dependencies
-cd assets
-yarn
-
-# Build assets
-yarn run build
 
 # Start BlockScout
 mix phx.server
